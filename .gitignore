@@ -2,3 +2,5 @@
 *.npy
 *.fits
 *.csv
+*.json
+*.txt
