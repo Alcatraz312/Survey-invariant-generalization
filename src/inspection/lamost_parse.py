@@ -105,15 +105,5 @@ def data_consol(directory_list, meta_df):
                 
 lamost_data_dict = data_consol(directory_list = directory_list, meta_df= meta_df) 
 
-out_path = os.path.join("/home/arbiter/projects/Survey-invariant-generalization/data", "lamost_data.json")
+# consolidate to Hdf5
 
-def json_converter(obj):
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    if isinstance(obj, (np.integer, np.floating)):
-        return obj.item()
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-
-with open(out_path, "w") as f:
-    json.dump(lamost_data_dict, f, default= json_converter)  
