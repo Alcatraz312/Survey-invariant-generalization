@@ -4,6 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 from astropy.io import fits
 
+import h5py
+from tqdm import tqdm
 import json
 
 folder_directory = "/home/arbiter/projects/data_downloads"
@@ -44,7 +46,7 @@ def data_consol(directory_list, meta_df):
     lamost_data_dict = {}
     global_idx = 0
 
-    for directory in directory_list:
+    for directory in tqdm(directory_list):
         file_list = os.listdir(directory)
 
         for file in file_list:
@@ -83,10 +85,9 @@ def data_consol(directory_list, meta_df):
                 snrz = float(primary_hdu.header.get("SNRZ", np.nan))
 
                 # store star data
-                lamost_data_dict[global_idx] = {
+                lamost_data_dict[obs_id] = {
                     "flux": flux,
                     "wavelength_grid": wavelength_grid,
-                    "obsID": obs_id,
                     "teff": teff,
                     "logg": logg,
                     "feh": feh,
@@ -98,7 +99,25 @@ def data_consol(directory_list, meta_df):
                     "SNRZ": snrz
                 }
 
-                global_idx += 1
+    with h5py.File("/home/arbiter/projects/Survey-invariant-generalization/data/lamost_combined.h5", "w") as h5f:
+
+        for obs_id, star in lamost_data_dict.items():
+
+            grp = h5f.create_group(str(obs_id))
+
+            grp.create_dataset("flux", data=np.array(star["flux"]), compression="gzip")
+            grp.create_dataset("wavelength_grid", data=np.array(star["wavelength_grid"]), compression="gzip")
+
+            grp.attrs["teff"] = star["teff"]
+            grp.attrs["logg"] = star["logg"]
+            grp.attrs["feh"] = star["feh"]
+            grp.attrs["spectral_class"] = star["spectral_class"]
+
+            grp.attrs["SNRU"] = star["SNRU"]
+            grp.attrs["SNRG"] = star["SNRG"]
+            grp.attrs["SNRR"] = star["SNRR"]
+            grp.attrs["SNRI"] = star["SNRI"]
+            grp.attrs["SNRZ"] = star["SNRZ"]
 
     return lamost_data_dict
 
@@ -107,3 +126,4 @@ lamost_data_dict = data_consol(directory_list = directory_list, meta_df= meta_df
 
 # consolidate to Hdf5
 
+print(lamost_data_dict.keys())
