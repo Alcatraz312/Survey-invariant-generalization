@@ -6,3 +6,4 @@
 *.txt
 data/*
 *.h5
+__pycache__/

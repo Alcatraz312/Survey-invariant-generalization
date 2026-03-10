@@ -315,7 +315,7 @@ def main():
         batch_size = 512
     )
 
-    lr_list = [1e-2, 1e-3, 1e-4, 1e-5]
+    lr_list = [1e-3, 1e-2, 1e-4, 1e-5]
 
     for lr_exp in lr_list:
         model = MTLArchitecture(
