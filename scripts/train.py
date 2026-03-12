@@ -87,7 +87,7 @@ def training_step(model, batch, optimizer, device, beta):
     out = model(flux)     # feed forward the flux data
 
     # aggregating losses
-    loss, components = model.aggregate_loss(
+    loss, components = model.uncertainty_aggregate_loss(
         x = flux,
         x_hat = out["x_hat"],
         mu = out["mu"],
@@ -105,7 +105,7 @@ def training_step(model, batch, optimizer, device, beta):
     # Gradient clipping — prevents exploding gradients
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)    # prevents gradient overshoot 
 
-    optimizer.step()    # take a discent step
+    optimizer.step()    # take a descent step
     return components
     
 @torch.no_grad()
@@ -124,7 +124,7 @@ def validation_step(model, batch, device, beta):
     flux, y_reg, y_cls = [b.to(device) for b in batch]
     out = model(flux) 
 
-    loss, components = model.aggregate_loss(
+    loss, components = model.uncertainty_aggregate_loss(
         x = flux,
         x_hat = out["x_hat"],
         mu = out["mu"],
@@ -155,7 +155,7 @@ def get_beta(epoch, warmup_epochs=30, beta_max=0.5):
         return beta_max * (epoch / warmup_epochs)
     return beta_max
 
-def train(model, train_loader, val_loader, n_epochs = 10, lr = 3e-4, beta = 1.0):
+def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4, beta = 1.0,):
 
     ''' 
     Training loop \n
@@ -174,6 +174,7 @@ def train(model, train_loader, val_loader, n_epochs = 10, lr = 3e-4, beta = 1.0)
     model = model.to(device)
 
     exp = comet_ml.start(api_key = comet_key, project_name = "Dissertation ML")
+    exp.set_name(f"Experiment Batch Size :{batch_size} , lr : {lr} , epochs : {n_epochs}")
 
     # log hyperparameters into comet ML
 
@@ -303,28 +304,28 @@ def train(model, train_loader, val_loader, n_epochs = 10, lr = 3e-4, beta = 1.0)
 
 def main():
     parser = argparse.ArgumentParser(prog="Trainer")
-    parser.add_argument('--max_epochs', type=int, default=10)
-    parser.add_argument('--lr',  type=float, default=0.001)
+    parser.add_argument('--max_epochs', type=int, default=150)
+    parser.add_argument('--lr',  type=float, default=0.0003)
     parser.add_argument('--beta', type=float, default=1.0)
+    parser.add_argument("--batch_size", type= int, default= 256 )
     args = parser.parse_args()
 
+    # lr_list = [1e-3, 1e-4, 3e-4, 1e-5]
+    
     train_loader, val_loader, test_loader = prepare_dataloader(
-        flux      = flux_clean,
-        y_reg     = y_reg_norm,
-        y_cls     = y_cls_clean,
-        batch_size = 512
+    flux      = flux_clean,
+    y_reg     = y_reg_norm,
+    y_cls     = y_cls_clean,
+    batch_size = args.batch_size
     )
 
-    lr_list = [1e-3, 1e-2, 1e-4, 1e-5]
-
-    for lr_exp in lr_list:
-        model = MTLArchitecture(
-            input_dim   = flux_clean.shape[1],
-            latent_dim  = 128,
-            num_classes = 7
-        )
-        train(model=model, train_loader=train_loader, val_loader=val_loader,
-              n_epochs=args.max_epochs, lr=lr_exp, beta=args.beta)
+    model = MTLArchitecture(
+        input_dim   = flux_clean.shape[1],
+        latent_dim  = 128,
+        num_classes = 7
+    )
+    train(model=model, train_loader=train_loader, val_loader=val_loader, batch_size= args.batch_size,
+            n_epochs=args.max_epochs, lr= args.lr, beta=args.beta)
 
 if __name__ == '__main__':
     main()

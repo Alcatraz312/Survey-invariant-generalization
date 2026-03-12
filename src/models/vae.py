@@ -149,7 +149,7 @@ class MTLArchitecture(nn.Module):
         '''
         return F.cross_entropy(cls_logits, labels)
     
-    def aggregate_loss(self,x, x_hat, mu, logvar, mu_reg, logvar_reg, y, cls_logits, labels, beta = 1.0):
+    def uncertainty_aggregate_loss(self,x, x_hat, mu, logvar, mu_reg, logvar_reg, y, cls_logits, labels, beta = 1.0):
         '''
         Aggregated loss \n
         negative Evidence lower bound + regression loss + classification loss
@@ -166,7 +166,7 @@ class MTLArchitecture(nn.Module):
         w_reg = 0.5 * torch.exp(-self.logvar_reg)
 
         # uncertainty weights loss aggregation
-        loss = (w_recon * recon_loss + self.logvar_recon + beta * kl) + (5.0 * w_reg * reg_loss + 0.5 * self.logvar_reg) + (5.0 * w_cls * cls_loss + 0.5 * self.logvar_cls)
+        loss = (w_recon * recon_loss + self.logvar_recon + beta * kl) + (w_reg * reg_loss + 0.5 * self.logvar_reg) + (w_cls * cls_loss + 0.5 * self.logvar_cls)
 
         #geometric loss aggregation
         # log_geo = (recon_loss + 5.0 * reg_loss + 5.0 * cls_loss)
@@ -186,3 +186,24 @@ class MTLArchitecture(nn.Module):
         }
 
         return loss, components
+    
+    def geometric_loss_aggregation(self, x, x_hat, mu, logvar, mu_reg, logvar_reg, y, cls_logits, labels, beta = 1.0):
+
+        recon_loss = self.reconstruction_loss(x, x_hat)
+        kl = self.kl_divergence(mu, logvar)
+        reg_loss = self.regression_loss(mu_reg, logvar_reg, y)
+        cls_loss = self.classification_loss(cls_logits, labels)
+
+        geometric_loss = ((recon_loss) * (reg_loss) * (cls_loss))**1/3 
+
+        regularized_geometric_loss = geometric_loss + beta * kl
+
+        components = {
+            "loss" : regularized_geometric_loss.item(),
+            "recon" : recon_loss.item(),
+            "kl" : kl.item(),
+            "reg" : reg_loss.item(),
+            "cls" : cls_loss.item(),
+        }
+
+        return regularized_geometric_loss, components
