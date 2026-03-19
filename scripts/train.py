@@ -68,7 +68,7 @@ def prepare_dataloader(flux, y_reg, y_cls,
     print(f"Train: {n_train} | Val: {n_val} | Test: {n_test}")
     return train_loader, val_loader, test_loader
 
-def training_step(model, batch, optimizer, device, beta):
+def training_step(model, batch, optimizer, device, beta, loss_agg):
 
     ''' 
     Training of a batch exactly once \n
@@ -76,7 +76,8 @@ def training_step(model, batch, optimizer, device, beta):
     batch : single data batch \n
     optimizer : torch optimizer for loss propagation \n
     device : cuda or cpu for matrix multiplication \n
-    beta : Kl divergence weight
+    beta : Kl divergence weight \n
+    loss_agg : u or s (type of loss , u for uncertainty aggregation, s for sum aggregation)
     '''
 
     model.train()    # training mode
@@ -87,18 +88,32 @@ def training_step(model, batch, optimizer, device, beta):
     out = model(flux)     # feed forward the flux data
 
     # aggregating losses
-    loss, components = model.uncertainty_aggregate_loss(
-        x = flux,
-        x_hat = out["x_hat"],
-        mu = out["mu"],
-        logvar = out["logvar"],
-        mu_reg = out["mu_reg"],
-        logvar_reg = out["logvar_reg"],
-        y = y_reg,
-        cls_logits = out["cls_logits"],
-        labels = y_cls,
-        beta = beta        
-    )
+    if loss_agg.lower() == "u":
+        loss, components = model.uncertainty_aggregate_loss(
+            x = flux,
+            x_hat = out["x_hat"],
+            mu = out["mu"],
+            logvar = out["logvar"],
+            mu_reg = out["mu_reg"],
+            logvar_reg = out["logvar_reg"],
+            y = y_reg,
+            cls_logits = out["cls_logits"],
+            labels = y_cls,
+            beta = beta        
+        )
+    elif loss_agg.lower() == "s":
+        loss, components = model.sum_aggregate_loss(
+            x = flux,
+            x_hat = out["x_hat"],
+            mu = out["mu"],
+            logvar = out["logvar"],
+            mu_reg = out["mu_reg"],
+            logvar_reg = out["logvar_reg"],
+            y = y_reg,
+            cls_logits = out["cls_logits"],
+            labels = y_cls,
+            beta = beta        
+        )
 
     loss.backward()    # back propagation
 
@@ -109,7 +124,7 @@ def training_step(model, batch, optimizer, device, beta):
     return components
     
 @torch.no_grad()
-def validation_step(model, batch, device, beta):
+def validation_step(model, batch, device, beta, loss_agg):
 
     ''' 
     Validation of a batch exactly once \n
@@ -124,18 +139,32 @@ def validation_step(model, batch, device, beta):
     flux, y_reg, y_cls = [b.to(device) for b in batch]
     out = model(flux) 
 
-    loss, components = model.uncertainty_aggregate_loss(
-        x = flux,
-        x_hat = out["x_hat"],
-        mu = out["mu"],
-        logvar = out["logvar"],
-        mu_reg = out["mu_reg"],
-        logvar_reg = out["logvar_reg"],
-        y = y_reg,
-        cls_logits = out["cls_logits"],
-        labels = y_cls,
-        beta = beta        
-    )
+    if loss_agg == "u":
+        loss, components = model.uncertainty_aggregate_loss(
+            x = flux,
+            x_hat = out["x_hat"],
+            mu = out["mu"],
+            logvar = out["logvar"],
+            mu_reg = out["mu_reg"],
+            logvar_reg = out["logvar_reg"],
+            y = y_reg,
+            cls_logits = out["cls_logits"],
+            labels = y_cls,
+            beta = beta        
+        )
+    elif loss_agg == "s":
+        loss, components = model.sum_aggregate_loss(
+            x = flux,
+            x_hat = out["x_hat"],
+            mu = out["mu"],
+            logvar = out["logvar"],
+            mu_reg = out["mu_reg"],
+            logvar_reg = out["logvar_reg"],
+            y = y_reg,
+            cls_logits = out["cls_logits"],
+            labels = y_cls,
+            beta = beta        
+        )
 
     # classification accuracy
     preds = out["cls_logits"].argmax(dim = 1)    # predicted class indices 
@@ -155,7 +184,7 @@ def get_beta(epoch, warmup_epochs=30, beta_max=0.5):
         return beta_max * (epoch / warmup_epochs)
     return beta_max
 
-def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4, beta = 1.0,):
+def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, lr_tasks = 3e-4, lr_recon = 1e-4, beta = 1.0):
 
     ''' 
     Training loop \n
@@ -168,23 +197,46 @@ def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4,
     beta : kl divergence weight
     '''
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    optimizer = torch.optim.Adam([
+
+        # Encoder - decoder and latent space parameters 
+        {"params" : model.encoder.parameters(), "lr": lr_tasks},
+        {"params" : model.decoder.parameters(), "lr" : lr_recon},
+        {"params" : [model.log_sigma_recon], "lr" : lr_recon},
+        {"params" : model.mu_layer.parameters(), "lr" : lr_tasks},
+        {"params" : model.logvar_layer.parameters(), "lr" : lr_tasks},
+
+        # downstream task heads parameters
+        {"params" : model.regression_head.parameters(), "lr" : lr_tasks},
+        {"params" : model.reg_mu.parameters(), "lr" : lr_tasks},
+        {"params" : model.reg_logvar.parameters(), "lr" : lr_tasks},
+        {"params" : model.classification_head.parameters(), "lr" : lr_tasks},
+
+        #homoskedastic uncertainty weights 
+        {"params" : [model.logvar_reg], "lr" : lr_tasks},
+        {"params" : [model.logvar_cls], "lr" : lr_tasks}
+    ])
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    # transfer to cuda cores
 
     model = model.to(device)
 
     exp = comet_ml.start(api_key = comet_key, project_name = "Dissertation ML")
-    exp.set_name(f"Experiment Batch Size :{batch_size} , lr : {lr} , epochs : {n_epochs}")
+    exp.set_name(f"Experiment Batch Size :{batch_size} , lr_tasks_encoder : {lr_tasks}, lr_reconstruction : {lr_recon} , epochs : {n_epochs} , loss : {loss_agg}")
 
     # log hyperparameters into comet ML
 
     exp.log_parameters({
         "n_epochs"   : n_epochs,
-        "lr"         : lr,
+        "lr_tasks_encoder"         : lr_tasks,
+        "lr_recon" : lr_recon,
         "beta"       : beta,
         "latent_dim" : model.mu_layer.out_features,
         "input_dim"  : model.encoder[0].in_features,
         "batch_size" : train_loader.batch_size,
+        "Loss_Aggregation" : "Linear Sum" if loss_agg == "s" else "Uncertainty Weighting loss aggregation"
     })
 
     # dictionary to track losses and accuracy metrics
@@ -223,7 +275,7 @@ def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4,
         n_train_batches = 0           # number of batches in the training 
 
         for batch in train_loader:
-            components = training_step(model, batch, optimizer, device, beta)     # training the model
+            components = training_step(model, batch, optimizer, device, beta, loss_agg)     # training the model
             for k in train_components:
                 train_components[k] += components[k]       # initializing the values into the loss dictionary
 
@@ -241,7 +293,7 @@ def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4,
         total_mae = np.zeros(3)
  
         for batch in val_loader:
-            components, accuracy, mae = validation_step(model, batch, device, beta)
+            components, accuracy, mae = validation_step(model, batch, device, beta, loss_agg)
 
             for k in val_components:
                 val_components[k] += components[k]
@@ -272,30 +324,52 @@ def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4,
         track_losses["val_mae"].append(mae_avg)
         
         # log the experiment loss metrics and parameters to comet ml 
+        if loss_agg == "u":
+            exp.log_metrics({
+                # Train losses
+                "train/loss"  : train_avg["loss"],
+                "train/recon" : train_avg["recon"],
+                "train/kl"    : train_avg["kl"],
+                "train/reg"   : train_avg["reg"],
+                "train/cls"   : train_avg["cls"],
+                # Val losses
+                "val/loss"    : val_avg["loss"],
+                "val/recon"   : val_avg["recon"],
+                "val/kl"      : val_avg["kl"],
+                "val/reg"     : val_avg["reg"],
+                "val/cls"     : val_avg["cls"],
+                # Val metrics
+                "val/accuracy"     : acc_avg,
+                "val/mae_teff"     : mae_avg[0],
+                "val/mae_logg"     : mae_avg[1],
+                "val/mae_feh"      : mae_avg[2],
+                # Learned task uncertainties
+                "sigma/recon" : torch.exp(0.5 * model.log_sigma_recon).item(),
+                "sigma/reg"   : torch.exp(0.5 * model.logvar_reg).item(),
+                "sigma/cls"   : torch.exp(0.5 * model.logvar_cls).item(),
+            }, epoch=epoch)
 
-        exp.log_metrics({
-            # Train losses
-            "train/loss"  : train_avg["loss"],
-            "train/recon" : train_avg["recon"],
-            "train/kl"    : train_avg["kl"],
-            "train/reg"   : train_avg["reg"],
-            "train/cls"   : train_avg["cls"],
-            # Val losses
-            "val/loss"    : val_avg["loss"],
-            "val/recon"   : val_avg["recon"],
-            "val/kl"      : val_avg["kl"],
-            "val/reg"     : val_avg["reg"],
-            "val/cls"     : val_avg["cls"],
-            # Val metrics
-            "val/accuracy"     : acc_avg,
-            "val/mae_teff"     : mae_avg[0],
-            "val/mae_logg"     : mae_avg[1],
-            "val/mae_feh"      : mae_avg[2],
-            # Learned task uncertainties
-            "sigma/recon" : torch.exp(0.5 * model.logvar_recon).item(),
-            "sigma/reg"   : torch.exp(0.5 * model.logvar_reg).item(),
-            "sigma/cls"   : torch.exp(0.5 * model.logvar_cls).item(),
-        }, epoch=epoch)
+        elif loss_agg == "s":
+            exp.log_metrics({
+                # Train losses
+                "train/loss"  : train_avg["loss"],
+                "train/recon" : train_avg["recon"],
+                "train/kl"    : train_avg["kl"],
+                "train/reg"   : train_avg["reg"],
+                "train/cls"   : train_avg["cls"],
+                # Val losses
+                "val/loss"    : val_avg["loss"],
+                "val/recon"   : val_avg["recon"],
+                "val/kl"      : val_avg["kl"],
+                "val/reg"     : val_avg["reg"],
+                "val/cls"     : val_avg["cls"],
+                # Val metrics
+                "val/accuracy"     : acc_avg,
+                "val/mae_teff"     : mae_avg[0],
+                "val/mae_logg"     : mae_avg[1],
+                "val/mae_feh"      : mae_avg[2],
+            }, epoch=epoch)
+
 
     exp.end()
 
@@ -305,9 +379,11 @@ def train(model, train_loader, val_loader, batch_size, n_epochs = 10, lr = 3e-4,
 def main():
     parser = argparse.ArgumentParser(prog="Trainer")
     parser.add_argument('--max_epochs', type=int, default=150)
-    parser.add_argument('--lr',  type=float, default=0.0003)
+    parser.add_argument('--lr_tasks',  type=float, default=0.0003)
+    parser.add_argument("--lr_recon", type = float, default = 0.0001)
     parser.add_argument('--beta', type=float, default=1.0)
     parser.add_argument("--batch_size", type= int, default= 256 )
+    parser.add_argument("--loss_agg", type = str, default = "s")
     args = parser.parse_args()
 
     # lr_list = [1e-3, 1e-4, 3e-4, 1e-5]
@@ -325,7 +401,7 @@ def main():
         num_classes = 7
     )
     train(model=model, train_loader=train_loader, val_loader=val_loader, batch_size= args.batch_size,
-            n_epochs=args.max_epochs, lr= args.lr, beta=args.beta)
+            loss_agg= args.loss_agg, n_epochs=args.max_epochs, lr_tasks= args.lr_tasks, lr_recon=args.lr_recon, beta=args.beta)
 
 if __name__ == '__main__':
     main()

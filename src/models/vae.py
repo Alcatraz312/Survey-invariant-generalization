@@ -39,7 +39,7 @@ class MTLArchitecture(nn.Module):
         # Learned global log variance for reconstruction
         # scalar — shared across all pixels
         # avoids conflating encoder uncertainty with reconstruction uncertainty
-        self.log_sigma_recon = nn.Parameter(torch.zeros(1))
+    
 
         # Regression head (heteroscedastic)
         # predicts mean + uncertainty for each atmospheric parameter
@@ -59,8 +59,8 @@ class MTLArchitecture(nn.Module):
             nn.Linear(64, num_classes)
         )
 
-        # homoscedastic uncertainties for each loss
-        self.logvar_recon = nn.Parameter(torch.zeros(1))    
+        # learnable homoscedastic uncertainties for each loss
+        self.log_sigma_recon = nn.Parameter(torch.zeros(1)) 
         self.logvar_reg = nn.Parameter(torch.zeros(1))
         self.logvar_cls = nn.Parameter(torch.zeros(1))
 
@@ -84,12 +84,12 @@ class MTLArchitecture(nn.Module):
         x_hat = self.decoder(z)
 
         # Regression head
-        z_reg       = self.regression_head(z)
+        z_reg       = self.regression_head(mu)
         mu_reg      = self.reg_mu(z_reg)       # (batch, 3)
         logvar_reg  = self.reg_logvar(z_reg)   # (batch, 3)
 
         # Classification head
-        cls_logits = self.classification_head(z)   # (batch, num_classes)
+        cls_logits = self.classification_head(mu)   # (batch, num_classes)
 
         return {
             "x_hat"      : x_hat,        # reconstructed spectrum
@@ -161,12 +161,14 @@ class MTLArchitecture(nn.Module):
         cls_loss = self.classification_loss(cls_logits, labels)
 
         # uncertainty weights for each loss function
-        w_recon = 0.5 * torch.exp(-self.logvar_recon)
+        w_recon = 0.5 * torch.exp(-self.log_sigma_recon)
         w_cls = 0.5 * torch.exp(-self.logvar_cls)
         w_reg = 0.5 * torch.exp(-self.logvar_reg)
 
         # uncertainty weights loss aggregation
-        loss = (w_recon * recon_loss + self.logvar_recon + beta * kl) + (w_reg * reg_loss + 0.5 * self.logvar_reg) + (w_cls * cls_loss + 0.5 * self.logvar_cls)
+        loss = (w_recon * recon_loss + 0.5 * self.log_sigma_recon + beta * kl) + (w_reg * reg_loss + 0.5 * self.logvar_reg) + (w_cls * cls_loss + 0.5 * self.logvar_cls)
+
+        # loss = recon_loss + beta * kl + reg_loss + cls_loss
 
         #geometric loss aggregation
         # log_geo = (recon_loss + 5.0 * reg_loss + 5.0 * cls_loss)
@@ -180,13 +182,40 @@ class MTLArchitecture(nn.Module):
             "reg" : reg_loss.item(),
             "cls" : cls_loss.item(),
 
-            "sigma_recon" : torch.exp(0.5 * self.logvar_recon).item(),
+            "sigma_recon" : torch.exp(0.5 * self.log_sigma_recon).item(),
             "sigma_reg"  : torch.exp(0.5 * self.logvar_reg).item(),
             "sigma_cls"  : torch.exp(0.5 * self.logvar_cls).item()
         }
 
         return loss, components
     
+    def sum_aggregate_loss(self, x, x_hat, mu, logvar, mu_reg, logvar_reg, y, cls_logits, labels, beta = 1.0):
+
+        recon_loss = self.reconstruction_loss(x, x_hat)
+        kl = self.kl_divergence(mu, logvar)
+        reg_loss = self.regression_loss(mu_reg, logvar_reg, y)
+        cls_loss = self.classification_loss(cls_logits, labels)
+
+        loss = (recon_loss) + beta * kl + (reg_loss) + (cls_loss)
+
+        # loss with reconstruction loss
+
+        # loss = beta * kl + reg_loss + cls_loss
+
+        components = {
+            "loss" : loss.item(),
+            "recon" : recon_loss.item(),
+            "kl" : kl.item(),
+            "reg" : reg_loss.item(),
+            "cls" : cls_loss.item(),
+
+            # "sigma_recon" : torch.exp(0.5 * self.logvar_recon).item(),
+            # "sigma_reg"  : torch.exp(0.5 * self.logvar_reg).item(),
+            # "sigma_cls"  : torch.exp(0.5 * self.logvar_cls).item()
+        }
+
+        return loss, components
+
     def geometric_loss_aggregation(self, x, x_hat, mu, logvar, mu_reg, logvar_reg, y, cls_logits, labels, beta = 1.0):
 
         recon_loss = self.reconstruction_loss(x, x_hat)
@@ -194,7 +223,7 @@ class MTLArchitecture(nn.Module):
         reg_loss = self.regression_loss(mu_reg, logvar_reg, y)
         cls_loss = self.classification_loss(cls_logits, labels)
 
-        geometric_loss = ((recon_loss) * (reg_loss) * (cls_loss))**1/3 
+        geometric_loss = ((recon_loss) * (reg_loss) * (cls_loss))**(1/3)
 
         regularized_geometric_loss = geometric_loss + beta * kl
 
