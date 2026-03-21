@@ -1,4 +1,4 @@
-from src.models.vae import MTLArchitecture
+from src.models.multitask import MTLArchitecture
 import argparse
 from src.data.data import flux_clean, y_reg_norm, y_cls_clean
 
@@ -196,6 +196,7 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
     lr : learning rate of the model, defaul set to 0.001 \n
     beta : kl divergence weight
     '''
+    # counter = 0
 
     # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -224,7 +225,7 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
     model = model.to(device)
 
     exp = comet_ml.start(api_key = comet_key, project_name = "Dissertation ML")
-    exp.set_name(f"Experiment Batch Size :{batch_size} , lr_tasks_encoder : {lr_tasks}, lr_reconstruction : {lr_recon} , epochs : {n_epochs} , loss : {loss_agg}")
+    exp.set_name(f"Multitasking Experiment Batch Size :{batch_size} , lr_tasks_encoder : {lr_tasks}, lr_reconstruction : {lr_recon} , epochs : {n_epochs} , loss : {loss_agg}")
 
     # log hyperparameters into comet ML
 
@@ -263,6 +264,9 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
     print(f"Training on {device}")
 
     # training and validation loop
+
+    # scheduling learning rate to reduce instability 
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min",patience = 10)
 
     for epoch in range(1, n_epochs + 1):
 
@@ -306,6 +310,14 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         val_avg = {k : v/n_val_batches for k,v in val_components.items()}
         acc_avg = total_acc/n_val_batches
         mae_avg = total_mae/n_val_batches
+
+        scheduler.step(val_avg["loss"])
+
+        # logging the changing learning rates onto comet 
+        task_lr = optimizer.param_groups[0]["lr"]
+        recon_lr = optimizer.param_groups[1]["lr"]
+        exp.log_metric("lr/tasks", task_lr, epoch = epoch)
+        exp.log_metric("lr/reconstruction", recon_lr, epoch = epoch)
 
         # update loss tracks
 
@@ -370,6 +382,10 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
                 "val/mae_feh"      : mae_avg[2],
             }, epoch=epoch)
 
+        # checking to see the parameters 
+        # counter += 1
+        # if counter < 2:
+        #     print(optimizer.param_groups[1])
 
     exp.end()
 
