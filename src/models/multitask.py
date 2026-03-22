@@ -14,10 +14,13 @@ class MTLArchitecture(nn.Module):
         # Encoder
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 1024),
+            nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU()
         )
 
@@ -45,8 +48,10 @@ class MTLArchitecture(nn.Module):
         # predicts mean + uncertainty for each atmospheric parameter
         self.regression_head = nn.Sequential(
             nn.Linear(latent_dim, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 32),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
         )
         self.reg_mu     = nn.Linear(32, 3)   # Teff, log g, [Fe/H]

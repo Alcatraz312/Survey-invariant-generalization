@@ -26,7 +26,7 @@ comet_key = os.environ.get("comet_ml_key")
 
 
 def prepare_dataloader(flux, y_reg, y_cls, 
-                       val_test_split=0.4, batch_size=256, seed=42):
+                       val_test_split=0.4, batch_size=256, seed=42, val_fraction = 0.25):
 
     ''' 
     Preparing the tensor sets for flux and labels
@@ -46,10 +46,9 @@ def prepare_dataloader(flux, y_reg, y_cls,
     dataset = TensorDataset(flux_tensor, y_reg_tensor, y_cls_tensor)
 
     # Compute integer sizes
-    n_val_test = int(n * val_test_split)
-    n_train    = n - n_val_test
-    n_val      = n_val_test // 2
-    n_test     = n_val_test - n_val    # handles odd numbers cleanly
+    n_val  = int(n * val_fraction)
+    n_test = int(n * val_test_split) - n_val  # remainder goes to test
+    n_train = n - n_val - n_test
 
     # splitting the datasets into train, val and test datasets
 
@@ -184,7 +183,7 @@ def get_beta(epoch, warmup_epochs=30, beta_max=0.5):
         return beta_max * (epoch / warmup_epochs)
     return beta_max
 
-def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, lr_tasks = 3e-4, lr_recon = 1e-4, beta = 1.0):
+def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, lr_tasks = 3e-4, lr_recon = 1e-4, beta = 1.0, lr_patience = 10, lr_min = 1e-5, schedule_lr = True):
 
     ''' 
     Training loop \n
@@ -237,7 +236,10 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         "latent_dim" : model.mu_layer.out_features,
         "input_dim"  : model.encoder[0].in_features,
         "batch_size" : train_loader.batch_size,
-        "Loss_Aggregation" : "Linear Sum" if loss_agg == "s" else "Uncertainty Weighting loss aggregation"
+        "Loss_Aggregation" : "Linear Sum" if loss_agg == "s" else "Uncertainty Weighting loss aggregation",
+        "LR scheduler patience" : lr_patience,
+        "LR min" : lr_min,
+        "Schedule LR ?" : schedule_lr
     })
 
     # dictionary to track losses and accuracy metrics
@@ -266,7 +268,8 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
     # training and validation loop
 
     # scheduling learning rate to reduce instability 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min",patience = 10)
+    if schedule_lr:
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min",patience = lr_patience, min_lr= lr_min)
 
     for epoch in range(1, n_epochs + 1):
 
@@ -311,7 +314,8 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         acc_avg = total_acc/n_val_batches
         mae_avg = total_mae/n_val_batches
 
-        scheduler.step(val_avg["loss"])
+        if schedule_lr:
+            scheduler.step(val_avg["loss"])
 
         # logging the changing learning rates onto comet 
         task_lr = optimizer.param_groups[0]["lr"]
@@ -391,6 +395,11 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
 
     return exp
 
+# constant seed to run experiments
+def set_seed(seed=42):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
 
 def main():
     parser = argparse.ArgumentParser(prog="Trainer")
@@ -400,7 +409,13 @@ def main():
     parser.add_argument('--beta', type=float, default=1.0)
     parser.add_argument("--batch_size", type= int, default= 256 )
     parser.add_argument("--loss_agg", type = str, default = "s")
+    parser.add_argument("--lr_patience", type = int, default= 10)
+    parser.add_argument("--lr_min", type = float, default = 1e-5)
+    parser.add_argument("--schedule_lr", type= bool, default= True)
+    parser.add_argument("--seed", type = int, default = 42)
     args = parser.parse_args()
+
+    set_seed(args.seed)
 
     # lr_list = [1e-3, 1e-4, 3e-4, 1e-5]
     
@@ -417,7 +432,7 @@ def main():
         num_classes = 7
     )
     train(model=model, train_loader=train_loader, val_loader=val_loader, batch_size= args.batch_size,
-            loss_agg= args.loss_agg, n_epochs=args.max_epochs, lr_tasks= args.lr_tasks, lr_recon=args.lr_recon, beta=args.beta)
+            loss_agg= args.loss_agg, n_epochs=args.max_epochs, lr_tasks= args.lr_tasks, lr_recon=args.lr_recon, beta=args.beta, lr_min = args.lr_min, schedule_lr= args.schedule_lr)
 
 if __name__ == '__main__':
     main()
