@@ -63,7 +63,7 @@ class MTLArchitecture(nn.Module):
             nn.ReLU(),
             nn.Linear(64, num_classes)
         )
-
+    
         # learnable homoscedastic uncertainties for each loss
         self.log_sigma_recon = nn.Parameter(torch.zeros(1)) 
         self.logvar_reg = nn.Parameter(torch.zeros(1))
