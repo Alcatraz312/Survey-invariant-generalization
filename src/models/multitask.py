@@ -47,13 +47,16 @@ class MTLArchitecture(nn.Module):
         # Regression head (heteroscedastic)
         # predicts mean + uncertainty for each atmospheric parameter
         self.regression_head = nn.Sequential(
-            nn.Linear(latent_dim, 64),
+            nn.Linear(latent_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-        )
+                    )
         self.reg_mu     = nn.Linear(32, 3)   # Teff, log g, [Fe/H]
         self.reg_logvar = nn.Linear(32, 3)   # per-parameter log variance
 

@@ -273,8 +273,8 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
 
     for epoch in range(1, n_epochs + 1):
 
-        # beta = get_beta(epoch, warmup_epochs=30, beta_max=0.5)     # beta annealing
-        # exp.log_metric("beta", beta, epoch=epoch) 
+        beta = get_beta(epoch, warmup_epochs=30, beta_max=0.5)     # beta annealing
+        exp.log_metric("beta", beta, epoch=epoch) 
 
         # traning:
 

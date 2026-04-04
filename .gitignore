@@ -7,4 +7,5 @@
 data/*
 *.h5
 *.pth
+src/models/*.pth
 __pycache__/
