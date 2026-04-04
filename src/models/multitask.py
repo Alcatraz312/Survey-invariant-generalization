@@ -228,7 +228,7 @@ class MTLArchitecture(nn.Module):
         reg_loss = self.regression_loss(mu_reg, logvar_reg, y)
         cls_loss = self.classification_loss(cls_logits, labels)
 
-        geometric_loss = ((recon_loss) * (reg_loss) * (cls_loss))**(1/3)
+        geometric_loss = torch.exp(1/3 * ((torch.log(recon_loss)) + (torch.log(reg_loss)) + (torch.log(cls_loss))))
 
         regularized_geometric_loss = geometric_loss + beta * kl
 

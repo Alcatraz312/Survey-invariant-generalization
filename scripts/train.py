@@ -391,6 +391,12 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         # if counter < 2:
         #     print(optimizer.param_groups[1])
 
+    torch.save({
+        "Epoch" : epoch,
+        "Model_state_dict" : model.state_dict(),
+        "Optimizer_state_dict" : optimizer.state_dict(),
+    }, "/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
+
     exp.end()
 
     return exp
