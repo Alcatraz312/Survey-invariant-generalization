@@ -13,7 +13,10 @@ class MTLArchitecture(nn.Module):
 
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, 1024),
+            nn.Linear(input_dim, 2048),
+            nn.BatchNorm1d(2048),
+            nn.ReLU(),
+            nn.Linear(2048, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
@@ -22,7 +25,7 @@ class MTLArchitecture(nn.Module):
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
             nn.ReLU()
-        )
+                )
 
         # Latent distribution
         self.mu_layer     = nn.Linear(256, latent_dim)
@@ -36,7 +39,9 @@ class MTLArchitecture(nn.Module):
             nn.ReLU(),
             nn.Linear(512, 1024),
             nn.ReLU(),
-            nn.Linear(1024, input_dim)
+            nn.Linear(1024, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, input_dim)
         )
 
         # Learned global log variance for reconstruction
@@ -50,13 +55,15 @@ class MTLArchitecture(nn.Module):
             nn.Linear(latent_dim, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-                    )
+        )
         self.reg_mu     = nn.Linear(32, 3)   # Teff, log g, [Fe/H]
         self.reg_logvar = nn.Linear(32, 3)   # per-parameter log variance
 
