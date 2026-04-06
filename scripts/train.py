@@ -409,16 +409,17 @@ def set_seed(seed=42):
 
 def main():
     parser = argparse.ArgumentParser(prog="Trainer")
-    parser.add_argument('--max_epochs', type=int, default=150)
+    parser.add_argument('--max_epochs', type=int, default=200)
     parser.add_argument('--lr_tasks',  type=float, default=0.0003)
     parser.add_argument("--lr_recon", type = float, default = 0.0001)
-    parser.add_argument('--beta', type=float, default=1.0)
-    parser.add_argument("--batch_size", type= int, default= 256 )
-    parser.add_argument("--loss_agg", type = str, default = "s")
+    parser.add_argument('--beta', type=float, default=0.03)
+    parser.add_argument("--batch_size", type= int, default= 256)
+    parser.add_argument("--loss_agg", type = str, default = "u")
     parser.add_argument("--lr_patience", type = int, default= 10)
     parser.add_argument("--lr_min", type = float, default = 1e-5)
     parser.add_argument("--schedule_lr", type= bool, default= True)
-    parser.add_argument("--seed", type = int, default = 42)
+    parser.add_argument("--seed", type = int, default = 123)
+    parser.add_argument("--latent_dim", type = int, default= 128)
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -434,7 +435,7 @@ def main():
 
     model = MTLArchitecture(
         input_dim   = flux_clean.shape[1],
-        latent_dim  = 128,
+        latent_dim  = args.latent_dim,
         num_classes = 7
     )
     train(model=model, train_loader=train_loader, val_loader=val_loader, batch_size= args.batch_size,

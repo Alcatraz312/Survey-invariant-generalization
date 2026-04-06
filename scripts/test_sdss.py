@@ -73,7 +73,7 @@ def main():
 
     model = MTLArchitecture(
             input_dim   = flux_clean.shape[1],
-            latent_dim  = 128,
+            latent_dim  = 256,
             num_classes = 7
         )
 
