@@ -1,0 +1,11 @@
+.*env*
+*.npy
+*.fits
+*.csv
+*.json
+*.txt
+data/*
+*.h5
+*.pth
+src/models/*.pth
+__pycache__/
