@@ -25,7 +25,7 @@ def get_flux_labels(data, meta_data):
             flux_array = data[star_id]["flux"][:]
 
             # Strip leading '1' to match obsid in metadata
-            obsid = int(star_id[1:])
+            obsid = int(star_id)
 
             # Metadata lookup
             star_meta = meta_data.loc[meta_data["obsid"] == obsid]

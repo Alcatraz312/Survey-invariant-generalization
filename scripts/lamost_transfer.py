@@ -50,7 +50,7 @@ def main():
 
     model = MTLArchitecture(
             input_dim   = flux_clean.shape[1],
-            latent_dim  = 256,
+            latent_dim  = 128,
             num_classes = 7
         )
 
@@ -66,6 +66,8 @@ def main():
     all_true_reg  = []
     all_preds_cls = []
     all_true_cls  = []
+    all_mu = []
+    all_x_hat = []
 
     with torch.no_grad():
         for batch in lamost_loader:
@@ -74,6 +76,9 @@ def main():
             out = model(flux)
             all_preds_reg.append(out["mu_reg"].cpu().numpy())
             all_true_reg.append(y_reg.cpu().numpy())
+            all_mu.append(out["mu"].cpu().numpy())
+
+            all_x_hat.append(out["x_hat"].cpu().numpy())
 
             cls_preds = out["cls_logits"].argmax(dim=1)
             all_preds_cls.append(cls_preds.cpu().numpy())
@@ -84,12 +89,15 @@ def main():
     true_reg  = np.concatenate(all_true_reg,  axis=0)
     preds_cls = np.concatenate(all_preds_cls, axis=0)
     true_cls  = np.concatenate(all_true_cls,  axis=0)
+    all_mu = np.concatenate(all_mu, axis=0) 
+    all_x_hat = np.concatenate(all_x_hat, axis = 0)
 
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_preds_reg.npy", preds_reg)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_true_reg.npy", true_reg)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_preds_cls.npy", preds_cls)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_true_cls.npy", true_cls)
+    np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_latent_mu.npy", all_mu)
+    np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/lamost_reconstructed_spectra.npy", all_x_hat)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
