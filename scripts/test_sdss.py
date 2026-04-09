@@ -91,6 +91,7 @@ def main():
     all_true_cls  = []
     all_mu = []
     all_x_hat = []
+    all_flux = []
 
     with torch.no_grad():
         for batch in test_loader:
@@ -102,6 +103,7 @@ def main():
             all_mu.append(out["mu"].cpu().numpy())    # latent vectors
 
             all_x_hat.append(out["x_hat"].cpu().numpy())    # reconstructed spectrum
+            all_flux.append(flux.cpu().numpy())
 
             cls_preds = out["cls_logits"].argmax(dim=1)
             all_preds_cls.append(cls_preds.cpu().numpy())
@@ -114,6 +116,7 @@ def main():
     true_cls  = np.concatenate(all_true_cls,  axis=0)
     all_mu = np.concatenate(all_mu, axis = 0)
     all_x_hat = np.concatenate(all_x_hat, axis = 0)
+    all_flux = np.concatenate(all_flux, axis = 0)
 
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/preds_reg.npy", preds_reg)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/true_reg.npy", true_reg)
@@ -121,6 +124,7 @@ def main():
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/true_cls.npy", true_cls)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/sdss_latent_mu.npy", all_mu)
     np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/sdss_reconstructed_spectra.npy", all_x_hat)
+    np.save("/home/arbiter/projects/Survey-invariant-generalization/src/inspection/model_inspection/sdss_flux.npy", all_flux)
 
 
 if __name__ == '__main__':
