@@ -3,9 +3,9 @@ import argparse
 from src.data.data import flux_clean, y_reg_norm, y_cls_clean
 from src.data.lamost_data import lamost_flux_clean, lamost_y_reg_norm, lamost_y_cls_clean
 
-from sdss_dataloader import prepare_dataloader
-from lamost_dataloader import prepare_dataloader_lamost
-from model_train import train, set_seed
+from experiments.sdss_dataloader import prepare_dataloader
+from experiments.lamost_dataloader import prepare_dataloader_lamost
+from experiments.model_train import train, set_seed
 
 import torch
 import torch.nn as nn   
