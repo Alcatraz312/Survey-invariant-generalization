@@ -116,13 +116,13 @@ lamost_data = h5py.File(f"{data_path}/lamost_resampled.h5")
 lamost_meta_data = pd.read_csv(f"{data_path}/lamost_meta.csv")
 
 flux, y_reg, y_cls = get_flux_labels(lamost_data, lamost_meta_data)
-flux_clean, y_reg_clean, y_cls_clean = clean_stars(flux, y_reg, y_cls)
+lamost_flux_clean, y_reg_clean, lamost_y_cls_clean = clean_stars(flux, y_reg, y_cls)
 
-print(flux_clean.min())
-print(flux_clean.max())
+print(lamost_flux_clean.min())
+print(lamost_flux_clean.max())
 
-y_reg_norm = (y_reg_clean - sdss_reg_mu) / sdss_reg_sigma
+lamost_y_reg_norm = (y_reg_clean - sdss_reg_mu) / sdss_reg_sigma
 
 np.save("lamost_y_reg_raw.npy", y_reg_clean)  # save raw physical values
-np.save("lamost_y_cls.npy", y_cls_clean)      # for H1 UMAP coloring
-np.save("lamost_flux.npy", flux_clean)         # might need later
+np.save("lamost_y_cls.npy", lamost_y_cls_clean)      # for H1 UMAP coloring
+np.save("lamost_flux.npy", lamost_flux_clean)         # might need later

@@ -251,3 +251,24 @@ class MTLArchitecture(nn.Module):
         }
 
         return regularized_geometric_loss, components
+    
+
+# smart initialization of weights
+
+def smart_init(model):
+
+    for name, module in model.named_modules():
+
+        if isinstance(module, nn.Linear):       # check for linear layer
+            nn.init.kaiming_normal(              # apply kaiming initialization
+                module.weight, 
+                nonlinearity= "relu"
+            )
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        
+        elif isinstance(module, nn.BatchNorm1d):
+            nn.init.ones_(module.weight)   # gamma = 1
+            nn.init.zeros_(module.bias)    # beta = 0
+
+            # standard batch normalization starting values
