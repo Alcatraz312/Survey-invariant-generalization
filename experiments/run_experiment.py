@@ -100,15 +100,15 @@ def main():
 
     dir_created = f"/home/arbiter/projects/Survey-invariant-generalization/experiments/experiments_data/experiment_{args.seed}"
 
-    os.mkdir(dir_created)
+    os.makedirs(dir_created, exist_ok=True)
 
-    np.save("{dir_created}/sdss_preds_reg.npy", preds_reg)
-    np.save("{dir_created}/sdss_true_reg.npy", true_reg)
-    np.save("{dir_created}/sdss_preds_cls.npy", preds_cls)
-    np.save("{dir_created}/sdss_true_cls.npy", true_cls)
-    np.save("{dir_created}/sdss_latent_mu.npy", all_mu)
-    np.save("{dir_created}/sdss_reconstructed_spectra.npy", all_x_hat)
-    np.save("{dir_created}/sdss_flux.npy", all_flux)
+    np.save(f"{dir_created}/sdss_preds_reg.npy", preds_reg)
+    np.save(f"{dir_created}/sdss_true_reg.npy", true_reg)
+    np.save(f"{dir_created}/sdss_preds_cls.npy", preds_cls)
+    np.save(f"{dir_created}/sdss_true_cls.npy", true_cls)
+    np.save(f"{dir_created}/sdss_latent_mu.npy", all_mu)
+    np.save(f"{dir_created}/sdss_reconstructed_spectra.npy", all_x_hat)
+    np.save(f"{dir_created}/sdss_flux.npy", all_flux)
 
     gc.collect()
 
@@ -152,13 +152,13 @@ def main():
     all_x_hat = np.concatenate(all_x_hat, axis = 0)
     all_flux = np.concatenate(all_flux, axis = 0)
 
-    np.save("{dir_created}/lamost_preds_reg.npy", preds_reg)
-    np.save("{dir_created}/lamost_true_reg.npy", true_reg)
-    np.save("{dir_created}/lamost_preds_cls.npy", preds_cls)
-    np.save("{dir_created}/lamost_true_cls.npy", true_cls)
-    np.save("{dir_created}/lamost_latent_mu.npy", all_mu)
-    np.save("{dir_created}/lamost_reconstructed_spectra.npy", all_x_hat)
-    np.save("{dir_created}/lamost_flux.npy", all_flux)
+    np.save(f"{dir_created}/lamost_preds_reg.npy", preds_reg)
+    np.save(f"{dir_created}/lamost_true_reg.npy", true_reg)
+    np.save(f"{dir_created}/lamost_preds_cls.npy", preds_cls)
+    np.save(f"{dir_created}/lamost_true_cls.npy", true_cls)
+    np.save(f"{dir_created}/lamost_latent_mu.npy", all_mu)
+    np.save(f"{dir_created}/lamost_reconstructed_spectra.npy", all_x_hat)
+    np.save(f"{dir_created}/lamost_flux.npy", all_flux)
 
 if __name__ == '__main__':
     main()
