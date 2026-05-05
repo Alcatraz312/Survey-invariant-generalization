@@ -18,7 +18,7 @@ def prepare_dataloader(flux, y_reg, y_cls,
 
     # Shuffle before splitting
     n    = len(flux_tensor)
-    perm = torch.randperm(n, generator=torch.Generator())
+    perm = torch.randperm(n, generator=torch.Generator().manual_seed(seed))
     flux_tensor  = flux_tensor[perm]
     y_reg_tensor = y_reg_tensor[perm]
     y_cls_tensor = y_cls_tensor[perm]
@@ -34,7 +34,7 @@ def prepare_dataloader(flux, y_reg, y_cls,
 
     train_set, val_set, test_set = random_split(
         dataset, [n_train, n_val, n_test],
-        generator=torch.Generator()
+        generator=torch.Generator().manual_seed(seed)
     )
 
     train_loader = DataLoader(train_set, batch_size=batch_size,

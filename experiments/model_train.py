@@ -138,7 +138,7 @@ def get_beta(epoch, warmup_epochs=30, beta_max=0.5):
         return beta_max * (epoch / warmup_epochs)
     return beta_max
 
-def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, lr_tasks = 3e-4, lr_recon = 1e-4, beta = 1.0, lr_patience = 10, lr_min = 1e-5, schedule_lr = True):
+def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, lr_tasks = 3e-4, lr_recon = 1e-4, beta = 1.0, lr_patience = 10, lr_min = 1e-5, schedule_lr = True, seed = 42):
 
     ''' 
     Training loop \n
@@ -346,11 +346,13 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         # if counter < 2:
         #     print(optimizer.param_groups[1])
 
+    save_path = f"/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model_seed_{seed}.pth"
+
     torch.save({
         "Epoch" : epoch,
         "Model_state_dict" : model.state_dict(),
         "Optimizer_state_dict" : optimizer.state_dict(),
-    }, "/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
+    }, save_path)
 
     exp.end()
 
@@ -360,3 +362,5 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark     = False
