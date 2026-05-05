@@ -146,3 +146,11 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+    # Force cleanup on exit
+    import gc
+    import torch
+    gc.collect()
+    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()

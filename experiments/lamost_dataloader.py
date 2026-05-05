@@ -38,4 +38,3 @@ def prepare_dataloader_lamost(flux, y_reg, y_cls, batch_size = 256,
     lamost_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     return lamost_loader
-
