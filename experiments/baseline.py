@@ -31,7 +31,7 @@ for i, (name, sigma) in enumerate(zip(param_names, reg_sigma)):
     mae_mean_dict[name] = float(mae)
     print(f"{name}: {mae:.4f}")
 
-# BASELINE 2 — Ridge regression on raw flux
+# BASELINE 2 — Linear Ridge regression on raw flux
 
 print("\n" + "=" * 20 + " Baseline Ridge Regression " + "=" * 20)
 
