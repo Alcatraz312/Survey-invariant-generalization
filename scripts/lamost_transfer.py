@@ -23,7 +23,7 @@ import gc
 import comet_ml
 
 def prepare_dataloader_lamost(flux, y_reg, y_cls, batch_size = 256, 
-                        seed=42):
+                        ):
 
     ''' 
     Preparing the tensor sets for flux and labels

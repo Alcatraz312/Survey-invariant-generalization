@@ -63,6 +63,7 @@ def prepare_dataloader(flux, y_reg, y_cls,
 
     print(f"Train: {n_train} | Val: {n_val} | Test: {n_test}")
     return train_loader, val_loader, test_loader
+
 def main():
     train_loader, val_loader, test_loader = prepare_dataloader(
         flux      = flux_clean,
