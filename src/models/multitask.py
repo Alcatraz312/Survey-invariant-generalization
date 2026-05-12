@@ -3,13 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MTLArchitecture(nn.Module):
-    def __init__(self, input_dim, latent_dim, num_classes):
+    def __init__(self, input_dim, latent_dim, num_classes, linear_reg=False):
         '''
         input_dim  : number of wavelength pixels -> int (3800)
         latent_dim : dimension of latent space   -> int
         num_classes: number of MK classes        -> int
+        linear_reg : if True, regression head is a single linear layer (no activations)
         '''
         super().__init__()
+
+        self.linear_reg = linear_reg
 
         # Encoder
         self.encoder = nn.Sequential(
@@ -25,7 +28,7 @@ class MTLArchitecture(nn.Module):
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
             nn.ReLU()
-                )
+        )
 
         # Latent distribution
         self.mu_layer     = nn.Linear(256, latent_dim)
@@ -44,118 +47,92 @@ class MTLArchitecture(nn.Module):
             nn.Linear(2048, input_dim)
         )
 
-        # Learned global log variance for reconstruction
-        # scalar — shared across all pixels
-        # avoids conflating encoder uncertainty with reconstruction uncertainty
-    
+        # ── Regression head ──
+        if self.linear_reg:
+            # single linear layer — no activations, no BatchNorm, no Dropout
+            # tests whether the latent space is linearly decodable
+            self.regression_head = nn.Identity()
+            self.reg_mu     = nn.Linear(latent_dim, 3)
+            self.reg_logvar = nn.Linear(latent_dim, 3)
+        else:
+            # full nonlinear head
+            self.regression_head = nn.Sequential(
+                nn.Linear(latent_dim, 128),
+                nn.BatchNorm1d(128),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(64, 32),
+                nn.BatchNorm1d(32),
+                nn.ReLU(),
+            )
+            self.reg_mu     = nn.Linear(32, 3)
+            self.reg_logvar = nn.Linear(32, 3)
 
-        # Regression head (heteroscedastic)
-        # predicts mean + uncertainty for each atmospheric parameter
-        self.regression_head = nn.Sequential(
-            nn.Linear(latent_dim, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-        )
-        self.reg_mu     = nn.Linear(32, 3)   # Teff, log g, [Fe/H]
-        self.reg_logvar = nn.Linear(32, 3)   # per-parameter log variance
-
-        # Classification head 
+        # Classification head — unchanged
         self.classification_head = nn.Sequential(
             nn.Linear(latent_dim, 64),
             nn.ReLU(),
             nn.Linear(64, num_classes)
         )
-    
-        # learnable homoscedastic uncertainties for each loss
-        self.log_sigma_recon = nn.Parameter(torch.zeros(1)) 
-        self.logvar_reg = nn.Parameter(torch.zeros(1))
-        self.logvar_cls = nn.Parameter(torch.zeros(1))
 
-    # Reparameterization
+        # learnable homoscedastic uncertainties
+        self.log_sigma_recon = nn.Parameter(torch.zeros(1))
+        self.logvar_reg      = nn.Parameter(torch.zeros(1))
+        self.logvar_cls      = nn.Parameter(torch.zeros(1))
+
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    # forward pass
     def forward(self, x):
-        # Encode
         h      = self.encoder(x)
         mu     = self.mu_layer(h)
         logvar = self.logvar_layer(h)
+        z      = self.reparameterize(mu, logvar)
+        x_hat  = self.decoder(z)
 
-        # Sample latent vector
-        z = self.reparameterize(mu, logvar)
+        # regression head — linear or nonlinear depending on flag
+        z_reg      = self.regression_head(mu)
+        mu_reg     = self.reg_mu(z_reg)
+        logvar_reg = self.reg_logvar(z_reg)
 
-        # Decode
-        x_hat = self.decoder(z)
-
-        # Regression head
-        z_reg       = self.regression_head(mu)
-        mu_reg      = self.reg_mu(z_reg)       # (batch, 3)
-        logvar_reg  = self.reg_logvar(z_reg)   # (batch, 3)
-
-        # Classification head
-        cls_logits = self.classification_head(mu)   # (batch, num_classes)
+        cls_logits = self.classification_head(mu)
 
         return {
-            "x_hat"      : x_hat,        # reconstructed spectrum
-            "mu"         : mu,           # latent mean
-            "logvar"     : logvar,       # latent log variance
-            "mu_reg"     : mu_reg,       # predicted atmospheric params
-            "logvar_reg" : logvar_reg,   # predicted param uncertainties
-            "cls_logits" : cls_logits    # raw class logits
+            "x_hat"      : x_hat,
+            "mu"         : mu,
+            "logvar"     : logvar,
+            "mu_reg"     : mu_reg,
+            "logvar_reg" : logvar_reg,
+            "cls_logits" : cls_logits
         }
 
-    # Loss components
-
     def reconstruction_loss(self, x, x_hat):
-        '''
-        Gaussian NLL with learned global variance
-        log_sigma_recon is a learned scalar parameter
-        mean over pixels, mean over batch → scalar
-        '''
         log_sigma = torch.clamp(self.log_sigma_recon, -10, 5)
         var       = torch.exp(2 * log_sigma)
-
         nll = 0.5 * torch.mean(
-            2 * log_sigma + (x - x_hat)**2 / var,
-            dim=1                                    # mean over pixels
+            2 * log_sigma + (x - x_hat)**2 / var, dim=1
         )
-        return nll.mean()                            # mean over batch → scalar
+        return nll.mean()
 
     def kl_divergence(self, mu, logvar):
-        '''
-        KL( q(z|x) || N(0,I) )
-        sum over latent dims, mean over batch → scalar
-        '''
         logvar = torch.clamp(logvar, -10, 5)
         kl = 0.5 * torch.sum(
-            mu**2 + torch.exp(logvar) - 1 - logvar,
-            dim=1                                    # sum over latent dims
+            mu**2 + torch.exp(logvar) - 1 - logvar, dim=1
         )
-        return kl.mean()                             # mean over batch → scalar
+        return kl.mean()
 
     def regression_loss(self, mu_reg, logvar_reg, y):
-        '''
-        Heteroscedastic Gaussian NLL for atmospheric parameters
-        y     : ground truth params (batch, 3)
-        mean over params, mean over batch → scalar
-        '''
         logvar_reg = torch.clamp(logvar_reg, -10, 5)
         nll = 0.5 * torch.mean(
-            logvar_reg + (y - mu_reg)**2 / torch.exp(logvar_reg),
-            dim=1                                    # mean over 3 params
+            logvar_reg + (y - mu_reg)**2 / torch.exp(logvar_reg), dim=1
         )
-        return nll.mean()                            # mean over batch → scalar
+        return nll.mean()
 
     def classification_loss(self, cls_logits, labels):
         '''
@@ -256,19 +233,15 @@ class MTLArchitecture(nn.Module):
 # smart initialization of weights
 
 def smart_init(model):
-
     for name, module in model.named_modules():
-
-        if isinstance(module, nn.Linear):       # check for linear layer
-            nn.init.kaiming_normal(              # apply kaiming initialization
-                module.weight, 
-                nonlinearity= "relu"
+        if isinstance(module, nn.Linear):
+            nn.init.kaiming_normal_(
+                module.weight,
+                nonlinearity="relu"
             )
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
-        
         elif isinstance(module, nn.BatchNorm1d):
-            nn.init.ones_(module.weight)   # gamma = 1
-            nn.init.zeros_(module.bias)    # beta = 0
-
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
             # standard batch normalization starting values

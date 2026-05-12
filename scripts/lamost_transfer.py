@@ -1,6 +1,6 @@
 from src.models.multitask import MTLArchitecture
 import argparse
-from src.data.lamost_data import flux_clean, y_reg_norm, y_cls_clean
+from src.data.lamost_data import lamost_flux_clean, lamost_y_reg_norm, lamost_y_cls_clean
 
 import numpy as np
 import pandas as pd
@@ -41,24 +41,30 @@ def prepare_dataloader_lamost(flux, y_reg, y_cls, batch_size = 256,
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--linear_reg", type = bool, default=False)
+    parser.add_argument("--checkpoint", type=str,
+                        default="/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
+    args = parser.parse_args()
+
     lamost_loader = prepare_dataloader_lamost(
-        flux = flux_clean, 
-        y_reg = y_reg_norm,
-        y_cls = y_cls_clean,
-        batch_size= 256
+        flux      = lamost_flux_clean,
+        y_reg     = lamost_y_reg_norm,
+        y_cls     = lamost_y_cls_clean,
+        batch_size = 256
     )
 
     model = MTLArchitecture(
-            input_dim   = flux_clean.shape[1],
-            latent_dim  = 128,
-            num_classes = 7
-        )
+        input_dim   = lamost_flux_clean.shape[1],
+        latent_dim  = 128,
+        num_classes = 7,
+        linear_reg  = args.linear_reg
+    )
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    # transfer to cuda cores
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model  = model.to(device)
 
-    model = model.to(device)
-
-    checkpoint = torch.load("/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
+    checkpoint = torch.load(args.checkpoint)
     model.load_state_dict(checkpoint["Model_state_dict"])
     model.eval()
 
