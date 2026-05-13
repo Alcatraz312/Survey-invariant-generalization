@@ -65,11 +65,6 @@ def prepare_dataloader(flux, y_reg, y_cls,
     return train_loader, val_loader, test_loader
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--linear_reg", type = bool, default=False)
-    parser.add_argument("--checkpoint", type=str,
-                        default="/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
-    args = parser.parse_args()
 
     train_loader, val_loader, test_loader = prepare_dataloader(
         flux       = flux_clean,
@@ -82,13 +77,12 @@ def main():
         input_dim   = flux_clean.shape[1],
         latent_dim  = 128,
         num_classes = 7,
-        linear_reg  = args.linear_reg    # ← matches whatever was trained
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model  = model.to(device)
 
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load("/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
     model.load_state_dict(checkpoint["Model_state_dict"])
     model.eval()
 

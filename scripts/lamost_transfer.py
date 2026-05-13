@@ -41,11 +41,6 @@ def prepare_dataloader_lamost(flux, y_reg, y_cls, batch_size = 256,
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--linear_reg", type = bool, default=False)
-    parser.add_argument("--checkpoint", type=str,
-                        default="/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
-    args = parser.parse_args()
 
     lamost_loader = prepare_dataloader_lamost(
         flux      = lamost_flux_clean,
@@ -58,13 +53,12 @@ def main():
         input_dim   = lamost_flux_clean.shape[1],
         latent_dim  = 128,
         num_classes = 7,
-        linear_reg  = args.linear_reg
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model  = model.to(device)
 
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load("/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
     model.load_state_dict(checkpoint["Model_state_dict"])
     model.eval()
 

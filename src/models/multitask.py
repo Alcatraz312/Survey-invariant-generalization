@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MTLArchitecture(nn.Module):
-    def __init__(self, input_dim, latent_dim, num_classes, linear_reg=False):
+    def __init__(self, input_dim, latent_dim, num_classes):
         '''
         input_dim  : number of wavelength pixels -> int (3800)
         latent_dim : dimension of latent space   -> int
@@ -11,8 +11,6 @@ class MTLArchitecture(nn.Module):
         linear_reg : if True, regression head is a single linear layer (no activations)
         '''
         super().__init__()
-
-        self.linear_reg = linear_reg
 
         # Encoder
         self.encoder = nn.Sequential(
@@ -47,30 +45,22 @@ class MTLArchitecture(nn.Module):
             nn.Linear(2048, input_dim)
         )
 
-        # ── Regression head ──
-        if self.linear_reg:
-            # single linear layer — no activations, no BatchNorm, no Dropout
-            # tests whether the latent space is linearly decodable
-            self.regression_head = nn.Identity()
-            self.reg_mu     = nn.Linear(latent_dim, 3)
-            self.reg_logvar = nn.Linear(latent_dim, 3)
-        else:
-            # full nonlinear head
-            self.regression_head = nn.Sequential(
-                nn.Linear(latent_dim, 128),
-                nn.BatchNorm1d(128),
-                nn.ReLU(),
-                nn.Dropout(0.1),
-                nn.Linear(128, 64),
-                nn.BatchNorm1d(64),
-                nn.ReLU(),
-                nn.Dropout(0.1),
-                nn.Linear(64, 32),
-                nn.BatchNorm1d(32),
-                nn.ReLU(),
-            )
-            self.reg_mu     = nn.Linear(32, 3)
-            self.reg_logvar = nn.Linear(32, 3)
+        # Regression Head 
+        self.regression_head = nn.Sequential(
+            nn.Linear(latent_dim, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+        )
+        self.reg_mu     = nn.Linear(32, 3)
+        self.reg_logvar = nn.Linear(32, 3)
 
         # Classification head — unchanged
         self.classification_head = nn.Sequential(

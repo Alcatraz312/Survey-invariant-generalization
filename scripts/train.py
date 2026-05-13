@@ -391,21 +391,19 @@ def train(model, train_loader, val_loader, batch_size,loss_agg, n_epochs = 10, l
         # if counter < 2:
         #     print(optimizer.param_groups[1])
 
-    save_name = "final_model_linear_reg.pth" if linear_reg else f"final_model_seed{seed}.pth"
-
     torch.save({
         "Epoch"               : epoch,
         "Model_state_dict"    : model.state_dict(),
         "Optimizer_state_dict": optimizer.state_dict(),
-        "linear_reg"          : linear_reg,   # save the flag so you know what it is
-    }, f"/home/arbiter/projects/Survey-invariant-generalization/src/models/{save_name}")
+        
+    }, "/home/arbiter/projects/Survey-invariant-generalization/src/models/final_model.pth")
 
     exp.end()
 
     return exp
 
 # constant seed to run experiments
-def set_seed(seed=42):
+def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
@@ -423,7 +421,6 @@ def main():
     parser.add_argument("--schedule_lr", type= bool, default= True)
     parser.add_argument("--seed", type = int, default = 123)
     parser.add_argument("--latent_dim", type = int, default= 128)
-    parser.add_argument("--linear_reg", type = bool, default=False)
     args = parser.parse_args()
 
     set_seed(args.seed) 
@@ -440,14 +437,13 @@ def main():
     model = MTLArchitecture(
         input_dim   = flux_clean.shape[1],
         latent_dim  = args.latent_dim,
-        num_classes = 7,
-        linear_reg  = args.linear_reg
+        num_classes = 7
     )
 
     smart_init(model= model)    
 
     train(model=model, train_loader=train_loader, val_loader=val_loader, batch_size= args.batch_size,
-            loss_agg= args.loss_agg, n_epochs=args.max_epochs, lr_tasks= args.lr_tasks, lr_recon=args.lr_recon, beta=args.beta, lr_min = args.lr_min, schedule_lr= args.schedule_lr, linear_reg= args.linear_reg, seed= args.seed)
+            loss_agg= args.loss_agg, n_epochs=args.max_epochs, lr_tasks= args.lr_tasks, lr_recon=args.lr_recon, beta=args.beta, lr_min = args.lr_min, schedule_lr= args.schedule_lr, seed= args.seed)
 
 if __name__ == '__main__':
     main()
