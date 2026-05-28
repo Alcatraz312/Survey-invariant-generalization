@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 sdss_data = h5py.File("/home/arbiter/projects/Survey-invariant-generalization/data/sdss_final_ready.h5")
 
-def normalize_flux(flux, reference_grid, lambda_ref):
+def normalize_flux(flux, reference_grid, lambda_ref):      # normalizing flux at a reference wavelength pixel
     ref_idx = np.argmin(np.abs(reference_grid - lambda_ref))
     ref_flux = flux[ref_idx]
 
@@ -19,35 +19,37 @@ def normalize_flux(flux, reference_grid, lambda_ref):
     return flux / ref_flux
 
 
-def mask_resample(star_data):
+def mask_resample(star_data):               # flux resampling using spectres
 
     failed_ids = 0
 
-    LAMBDA_START = 4000
-    LAMBDA_END = 8500
-    NUM_PIXELS = 3800
+    LAMBDA_START = 4000       # reference grid start
+    LAMBDA_END = 8500           # reference grid end 
+    NUM_PIXELS = 3800        # number of wavelength pixels
 
-    reference_grid = np.linspace(LAMBDA_START, LAMBDA_END, NUM_PIXELS)
+    reference_grid = np.linspace(LAMBDA_START, LAMBDA_END, NUM_PIXELS)              
 
     results_dict = {}
-    counter = 0
+
     for star in tqdm(star_data):
     
         star_wave = star_data[star]["wavelength_grid"][:]
         star_flux = star_data[star]["flux"][:]
         star_snr = star_data[star]["snr"][:]
 
-        mask  = (star_wave >= LAMBDA_START) & (star_wave <= LAMBDA_END)
+        mask  = (star_wave >= LAMBDA_START) & (star_wave <= LAMBDA_END)     # mask
 
+        # masking flux, wavelength and snr arrays
         star_wave_masked = star_wave[mask]
         star_flux_masked = star_flux[mask]
         star_snr_masked = star_snr[mask]
 
-        if len(star_wave_masked) < 3000:
+        # star failed if flux array has less than 3000 points after the mask
+        if len(star_wave_masked) < 3000:     
             failed_ids += 1
             continue
 
-
+        # spectral resampling using spectres        
         try:
             flux_resampled = spectres.spectres(
                     reference_grid,
@@ -57,11 +59,11 @@ def mask_resample(star_data):
                     verbose = False
                 )
             
-            snr_resampled = np.interp(reference_grid, star_wave_masked, star_snr_masked)
+            snr_resampled = np.interp(reference_grid, star_wave_masked, star_snr_masked)        # interpolating the SNR because it cannot be resampled 
 
             normalized_resampled_flux = normalize_flux(flux_resampled, reference_grid, 5550.0)
 
-        except Exception as e:
+        except Exception as e:    # printing failed stars
             print(f"Failed star {star}")
             continue
         
@@ -70,7 +72,7 @@ def mask_resample(star_data):
                               "flux" : normalized_resampled_flux,
                               "snr" : snr_resampled}
 
-
+    # store cleaned stars in hdf5 format
     with h5py.File("/home/arbiter/projects/Survey-invariant-generalization/data/sdss_resampled.h5", "w") as f:
 
          for key, value in results_dict.items():

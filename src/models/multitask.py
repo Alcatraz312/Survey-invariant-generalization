@@ -15,7 +15,7 @@ class MTLArchitecture(nn.Module):
         # Encoder
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 2048),
-            nn.BatchNorm1d(2048),
+            nn.BatchNorm1d(2048),    # batchnormalization 
             nn.ReLU(),
             nn.Linear(2048, 1024),
             nn.BatchNorm1d(1024),
@@ -32,7 +32,7 @@ class MTLArchitecture(nn.Module):
         self.mu_layer     = nn.Linear(256, latent_dim)
         self.logvar_layer = nn.Linear(256, latent_dim)
 
-        # Decoder
+        # Decoder with no batch normalization
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 256),
             nn.ReLU(),
@@ -48,9 +48,9 @@ class MTLArchitecture(nn.Module):
         # Regression Head 
         self.regression_head = nn.Sequential(
             nn.Linear(latent_dim, 128),
-            nn.BatchNorm1d(128),
+            nn.BatchNorm1d(128),   # batchnormalization 
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.1),      # dropouts
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
@@ -75,11 +75,25 @@ class MTLArchitecture(nn.Module):
         self.logvar_cls      = nn.Parameter(torch.zeros(1))
 
     def reparameterize(self, mu, logvar):
+        '''
+        Reparameterize the latent variables for backpropagation \n
+        Parameters : \n
+        mu : latent mean vector -> Tensor \n
+        logvar : latent variance vector -> Tensor \n
+        Returns: \n
+        z : reparameterized latent vector
+    
+        '''
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
     def forward(self, x):
+        '''
+        Forward pass for the archicture \n
+        Parameters: \n
+        x : data tensor
+        '''
         h      = self.encoder(x)
         mu     = self.mu_layer(h)
         logvar = self.logvar_layer(h)
@@ -222,10 +236,10 @@ class MTLArchitecture(nn.Module):
 
 # smart initialization of weights
 
-def smart_init(model):
+def smart_init(model):    
     for name, module in model.named_modules():
         if isinstance(module, nn.Linear):
-            nn.init.kaiming_normal_(
+            nn.init.kaiming_normal_(       # using kaiming he weight initialization technique 
                 module.weight,
                 nonlinearity="relu"
             )
