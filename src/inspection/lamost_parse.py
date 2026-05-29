@@ -8,13 +8,17 @@ import h5py
 from tqdm import tqdm
 import json
 
+# root directory containing all downloaded LAMOST spectral folders
 folder_directory = "/home/arbiter/projects/data_downloads"
 
+# list all folders, exclude the metadata folder
 folder_list = os.listdir(folder_directory)
 folder_list = [x for x in folder_list if x != "Lamost_metadata"]
 
+# sort folders numerically by trailing index
 folder_list.sort(key=lambda x: int(x.split("_")[-1]))
 
+# walk each folder to collect subdirectory paths at depth 8
 directory_list = []
 
 for folder in folder_list:
@@ -24,16 +28,18 @@ for folder in folder_list:
             directory_list.append("/".join(root))
 
 
+# path to LAMOST metadata CSV files
 metadata_lamost_dir = f"{folder_directory}/Lamost_metadata"
 metadata_file_list = os.listdir(metadata_lamost_dir)
 
+# sort metadata files numerically by index in filename
 metadata_file_list.sort(key=lambda x: int(x.split("_")[1]))
 
+# load and concatenate all metadata CSV files into a single dataframe
 metadataframe_list = []
 for file in metadata_file_list:
-    if "Zone" not in file:
+    if "Zone" not in file:   # skip calibration zone files
         dataframe = pd.read_csv(f"{metadata_lamost_dir}/{file}")
-
         metadataframe_list.append(dataframe)
 
 meta_df = pd.concat(metadataframe_list, axis = 0)
@@ -50,7 +56,7 @@ def data_consol(directory_list, meta_df):
         file_list = os.listdir(directory)
 
         for file in file_list:
-            # only valid LAMOST spectra
+            # skip non-FITS files and calibration zone entries
             if "fits.gz" not in file or ":Zone" in file:
                 continue
 
@@ -58,33 +64,33 @@ def data_consol(directory_list, meta_df):
                 primary_hdu = stellar_data[0]
                 secondary_data = stellar_data[1].data
 
-                # spectral data
+                # extract flux and wavelength arrays from binary table
                 flux = secondary_data["FLUX"][0]
                 wavelength_grid = secondary_data["WAVELENGTH"][0]
 
-                # OBSID from FITS header
+                # unique observation ID from primary header
                 obsid = primary_hdu.header["OBSID"]
 
-                # metadata lookup (SAFE)
+                # look up this star in the metadata dataframe by obsid
                 row = meta_df.loc[meta_df["obsid"] == obsid]
                 if row.empty:
                     continue  # skip stars without metadata
 
-                # extract scalar values
+                # extract atmospheric parameters and spectral class
                 obs_id = int(row["obsid"].iloc[0])
                 teff = float(row["teff"].iloc[0])
                 logg = float(row["logg"].iloc[0])
                 feh = float(row["feh"].iloc[0])
                 spectral_class = str(row["subclass"].iloc[0])
 
-                # SNR values
+                # extract per-band SNR values from header, default to NaN if missing
                 snru = float(primary_hdu.header.get("SNRU", np.nan))
                 snrg = float(primary_hdu.header.get("SNRG", np.nan))
                 snrr = float(primary_hdu.header.get("SNRR", np.nan))
                 snri = float(primary_hdu.header.get("SNRI", np.nan))
                 snrz = float(primary_hdu.header.get("SNRZ", np.nan))
 
-                # store star data
+                # store all star data in dictionary keyed by obsid
                 lamost_data_dict[obs_id] = {
                     "flux": flux,
                     "wavelength_grid": wavelength_grid,
@@ -99,15 +105,19 @@ def data_consol(directory_list, meta_df):
                     "SNRZ": snrz
                 }
 
+    # write all collected stars to a single HDF5 file
     with h5py.File("/home/arbiter/projects/Survey-invariant-generalization/data/lamost_combined.h5", "w") as h5f:
 
         for obs_id, star in lamost_data_dict.items():
 
+            # each star gets its own group named by obsid
             grp = h5f.create_group(str(obs_id))
 
+            # flux and wavelength stored as compressed datasets
             grp.create_dataset("flux", data=np.array(star["flux"]), compression="gzip")
             grp.create_dataset("wavelength_grid", data=np.array(star["wavelength_grid"]), compression="gzip")
 
+            # scalar values stored as group attributes
             grp.attrs["teff"] = star["teff"]
             grp.attrs["logg"] = star["logg"]
             grp.attrs["feh"] = star["feh"]
