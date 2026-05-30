@@ -1,5 +1,8 @@
 # Survey-Invariant Latent Representation of Stellar Spectra <img width="40" height="40" alt="telescope" src="https://github.com/user-attachments/assets/3d65f669-5728-4fec-b153-37fdf7c07167" />
 
+<p align = "center">
+<img src = "[https://wallpaperaccess.com/full/47178.jpg](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXh4cWozcGpkYzNhemx1MjA0cW40ZGwzanMwbmRhODVzN3g5OGg2NCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/11kn6DFp9BNqWA/giphy.gif)" width = "800" height = "300" />
+</p>
 
 ## Overview
 This project was done as a B.Sc. (Honors) Physics final year dissertation. In this project, we aim to achieve a Variational Autoencoder latent space generalization across stellar surveys (SDSS and LAMOST) through a Multitask Learning Framework. The project investigates whether a latent space learned from one stellar spectroscopic survey encodes physically meaningful stellar features that generalise across the domain shift introduced by a different telescope, instrument, and calibration pipeline.
