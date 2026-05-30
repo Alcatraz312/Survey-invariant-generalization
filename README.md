@@ -1,7 +1,7 @@
 # Survey-Invariant Latent Representation of Stellar Spectra <img width="40" height="40" alt="telescope" src="https://github.com/user-attachments/assets/3d65f669-5728-4fec-b153-37fdf7c07167" />
 
 <p align = "center">
-<img src = "https://www.uqgoptics.com/wp-content/uploads/2024/09/astronomy-EDIT.jpg" width = "800" height = "300" />
+<img src = "https://www.uqgoptics.com/wp-content/uploads/2024/09/astronomy-EDIT.jpg" width = "650" height = "300" />
 </p>
 
 ## Overview
