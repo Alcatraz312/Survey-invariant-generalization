@@ -1,4 +1,4 @@
-# Survey-Invariant Latent Representation of Stellar Spectra <img width="10" height="10" alt="telescope" src="https://github.com/user-attachments/assets/3d65f669-5728-4fec-b153-37fdf7c07167" />
+# Survey-Invariant Latent Representation of Stellar Spectra <img width="40" height="40" alt="telescope" src="https://github.com/user-attachments/assets/3d65f669-5728-4fec-b153-37fdf7c07167" />
 
 
 ## Overview
